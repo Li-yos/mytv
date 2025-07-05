@@ -142,19 +142,22 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
 
     log(`代理请求: ${targetUrl}`);
 
-    // 添加请求超时和重试逻辑
+    // 判断是否为API请求
+    const isApi = targetUrl.includes('/api.php/provide/vod') || req.headers.accept?.includes('application/json');
+
     const maxRetries = config.maxRetries;
     let retries = 0;
-    
+
     const makeRequest = async () => {
       try {
         return await axios({
           method: 'get',
           url: targetUrl,
-          responseType: 'stream',
+          responseType: isApi ? 'json' : 'stream',
           timeout: config.timeout,
           headers: {
-            'User-Agent': config.userAgent
+            'User-Agent': config.userAgent,
+            'Accept': req.headers.accept || (isApi ? 'application/json' : '*/*')
           }
         });
       } catch (error) {
@@ -168,24 +171,28 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
     };
 
     const response = await makeRequest();
-
-    // 转发响应头（过滤敏感头）
     const headers = { ...response.headers };
     const sensitiveHeaders = (
-      process.env.FILTERED_HEADERS || 
+      process.env.FILTERED_HEADERS ||
       'content-security-policy,cookie,set-cookie,x-frame-options,access-control-allow-origin'
     ).split(',');
-    
     sensitiveHeaders.forEach(header => delete headers[header]);
     res.set(headers);
 
-    // 管道传输响应流
-    response.data.pipe(res);
+    if (isApi) {
+      res.json(response.data);
+    } else {
+      response.data.pipe(res);
+    }
   } catch (error) {
     console.error('代理请求错误:', error.message);
     if (error.response) {
-      res.status(error.response.status || 500);
-      error.response.data.pipe(res);
+      if (error.response.data && error.response.data.pipe) {
+        res.status(error.response.status || 500);
+        error.response.data.pipe(res);
+      } else {
+        res.status(error.response.status || 500).send(error.response.data || '代理请求失败');
+      }
     } else {
       res.status(500).send(`请求失败: ${error.message}`);
     }

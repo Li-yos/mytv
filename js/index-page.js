@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 检查页面路径中的搜索参数 (格式: /s=keyword)
     const path = window.location.pathname;
     const searchPrefix = '/s=';
-    
+    let hasAutoSearched = false;
     if (path.startsWith(searchPrefix)) {
         // 提取搜索关键词
         const keyword = decodeURIComponent(path.substring(searchPrefix.length));
@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }, 300);
         }
+        hasAutoSearched = true;
     }
     
     // 也检查查询字符串中的搜索参数 (格式: ?s=keyword)
@@ -75,6 +76,14 @@ document.addEventListener('DOMContentLoaded', function() {
             } catch (e) {
                 console.error('更新浏览器历史失败:', e);
             }
+        }, 300);
+        hasAutoSearched = true;
+    }
+    
+    // 如果没有关键词参数，自动聚合展示
+    if (!hasAutoSearched) {
+        setTimeout(() => {
+            search();
         }, 300);
     }
 });

@@ -626,10 +626,11 @@ async function search() {
     }
     const query = document.getElementById('searchInput').value.trim();
 
-    if (!query) {
-        showToast('请输入搜索内容', 'info');
-        return;
-    }
+    // 允许 query 为空时也聚合所有已勾选资源站首页推荐
+    // if (!query) {
+    //     showToast('请输入搜索内容', 'info');
+    //     return;
+    // }
 
     if (selectedAPIs.length === 0) {
         showToast('请至少选择一个API源', 'warning');
@@ -639,8 +640,8 @@ async function search() {
     showLoading();
 
     try {
-        // 保存搜索历史
-        saveSearchHistory(query);
+        // 保存搜索历史（仅有关键词时保存）
+        if (query) saveSearchHistory(query);
 
         // 从所有选中的API源搜索
         let allResults = [];
