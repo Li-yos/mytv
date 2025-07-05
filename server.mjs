@@ -192,6 +192,67 @@ app.get('/proxy/:encodedUrl', async (req, res) => {
   }
 });
 
+// ========== 聚合API路由补全开始 ==========
+// 由于 config.js 不是模块导出，直接读取和解析
+import vm from 'vm';
+const configJsPath = path.join(__dirname, 'js', 'config.js');
+const configJsContent = fs.readFileSync(configJsPath, 'utf8');
+const sandbox = {};
+vm.createContext(sandbox);
+vm.runInContext(configJsContent + '\nAPI_SITES = API_SITES; API_CONFIG = API_CONFIG;', sandbox);
+const API_SITES = sandbox.API_SITES;
+const API_CONFIG = sandbox.API_CONFIG;
+
+// 聚合搜索接口
+app.get('/api/search', async (req, res) => {
+  try {
+    const { wd = '', source, customApi } = req.query;
+    let apiUrl = '';
+    if (customApi) {
+      apiUrl = `${customApi}${API_CONFIG.search.path}${encodeURIComponent(wd)}`;
+    } else if (source && API_SITES[source]) {
+      apiUrl = `${API_SITES[source].api}${API_CONFIG.search.path}${encodeURIComponent(wd)}`;
+    } else {
+      // 默认用 heimuer
+      apiUrl = `${API_SITES.heimuer.api}${API_CONFIG.search.path}${encodeURIComponent(wd)}`;
+    }
+    // 通过本地代理
+    const proxyUrl = `/proxy/${encodeURIComponent(apiUrl)}`;
+    const response = await axios.get(`http://localhost:${config.port}${proxyUrl}`, {
+      headers: API_CONFIG.search.headers,
+      timeout: config.timeout
+    });
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: 'API聚合失败', error: error.message });
+  }
+});
+
+// 详情接口
+app.get('/api/detail', async (req, res) => {
+  try {
+    const { id = '', source, customApi } = req.query;
+    let apiUrl = '';
+    if (customApi) {
+      apiUrl = `${customApi}${API_CONFIG.detail.path}${id}`;
+    } else if (source && API_SITES[source]) {
+      apiUrl = `${API_SITES[source].api}${API_CONFIG.detail.path}${id}`;
+    } else {
+      apiUrl = `${API_SITES.heimuer.api}${API_CONFIG.detail.path}${id}`;
+    }
+    // 通过本地代理
+    const proxyUrl = `/proxy/${encodeURIComponent(apiUrl)}`;
+    const response = await axios.get(`http://localhost:${config.port}${proxyUrl}`, {
+      headers: API_CONFIG.detail.headers,
+      timeout: config.timeout
+    });
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ code: 500, msg: '详情API失败', error: error.message });
+  }
+});
+// ========== 聚合API路由补全结束 ==========
+
 app.use(express.static(path.join(__dirname), {
   maxAge: config.cacheMaxAge
 }));
